@@ -1,0 +1,64 @@
+---
+- name: Verify SSL auto-renewal
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Check if certbot is installed
+      ansible.builtin.command:
+        cmd: certbot --version
+      register: certbot_version
+      changed_when: false
+      failed_when: false
+
+    - name: Print certbot version
+      ansible.builtin.debug:
+        msg: "{{ certbot_version.stdout if certbot_version.rc == 0 else 'Certbot is not installed on this server' }}"
+
+    - name: Check certbot systemd timer
+      ansible.builtin.command:
+        cmd: systemctl status certbot.timer
+      register: certbot_timer
+      changed_when: false
+      failed_when: false
+      when: certbot_version.rc == 0
+
+    - name: Print certbot timer status
+      ansible.builtin.debug:
+        msg: "{{ certbot_timer.stdout_lines }}"
+      when: certbot_version.rc == 0
+
+    - name: Verify certbot renewal configuration
+      ansible.builtin.command:
+        cmd: certbot renew --dry-run
+      register: renewal_check
+      changed_when: false
+      failed_when: false
+      when: certbot_version.rc == 0
+
+    - name: Print renewal check result
+      ansible.builtin.debug:
+        msg: "{{ renewal_check.stdout_lines }}"
+      when: certbot_version.rc == 0
+
+    - name: List existing certificates
+      ansible.builtin.command:
+        cmd: certbot certificates
+      register: certificates
+      changed_when: false
+      failed_when: false
+      when: certbot_version.rc == 0
+
+    - name: Print certificates
+      ansible.builtin.debug:
+        msg: "{{ certificates.stdout_lines }}"
+      when: certbot_version.rc == 0
+
+    - name: Install certbot if not present
+      ansible.builtin.apt:
+        name:
+          - certbot
+          - python3-certbot-nginx
+        state: present
+        update_cache: yes
+      when: certbot_version.rc != 0

@@ -1,0 +1,58 @@
+---
+- name: Install and configure Fail2Ban
+  hosts: all
+  become: true
+
+  vars:
+    fail2ban_maxretry: 3
+    fail2ban_bantime: 3600
+    fail2ban_findtime: 600
+
+  tasks:
+    - name: Install Fail2Ban
+      ansible.builtin.apt:
+        name: fail2ban
+        state: present
+        update_cache: yes
+
+    - name: Create Fail2Ban local jail configuration
+      ansible.builtin.copy:
+        dest: /etc/fail2ban/jail.local
+        content: |
+          [DEFAULT]
+          bantime  = {{ fail2ban_bantime }}
+          findtime = {{ fail2ban_findtime }}
+          maxretry = {{ fail2ban_maxretry }}
+          backend  = systemd
+
+          [sshd]
+          enabled  = true
+          port     = ssh
+          logpath  = %(sshd_log)s
+          maxretry = {{ fail2ban_maxretry }}
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart fail2ban
+
+    - name: Ensure Fail2Ban is started and enabled
+      ansible.builtin.service:
+        name: fail2ban
+        state: started
+        enabled: true
+
+    - name: Verify Fail2Ban is protecting SSH
+      ansible.builtin.command:
+        cmd: fail2ban-client status sshd
+      register: fail2ban_status
+      changed_when: false
+
+    - name: Print Fail2Ban SSH jail status
+      ansible.builtin.debug:
+        msg: "{{ fail2ban_status.stdout }}"
+
+  handlers:
+    - name: Restart fail2ban
+      ansible.builtin.service:
+        name: fail2ban
+        state: restarted

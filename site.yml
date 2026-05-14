@@ -1,0 +1,10 @@
+---
+- import_playbook: ufw.yml
+- import_playbook: ssh-hardening.yml
+- import_playbook: users.yml
+- import_playbook: fail2ban.yml
+- import_playbook: auto-updates.yml
+- import_playbook: docker-credentials.yml
+- import_playbook: docker-security.yml
+- import_playbook: ssl-renewal.yml
+- import_playbook: audit.yml

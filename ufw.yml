@@ -1,0 +1,68 @@
+---
+- name: Configure ufw firewall
+  hosts: all
+  become: true
+
+  vars:
+    allowed_ssh_ranges:
+      - "102.89.0.0/16"
+    allowed_k8s_ranges:
+      - "102.89.0.0/16"
+      - "165.227.128.0/20"
+      - "178.128.192.0/18"
+
+  tasks:
+    - name: Install community.general collection
+      ansible.builtin.command:
+        cmd: ansible-galaxy collection install community.general
+      delegate_to: localhost
+      run_once: true
+      become: false
+
+    - name: Install ufw
+      ansible.builtin.apt:
+        name: ufw
+        state: present
+        update_cache: yes
+
+    - name: Set default incoming policy to deny
+      community.general.ufw:
+        default: deny
+        direction: incoming
+
+    - name: Set default outgoing policy to allow
+      community.general.ufw:
+        default: allow
+        direction: outgoing
+
+    - name: Allow SSH with rate limiting from trusted ranges
+      community.general.ufw:
+        rule: limit
+        port: "22"
+        proto: tcp
+        src: "{{ item }}"
+      loop: "{{ allowed_ssh_ranges }}"
+
+    - name: Allow HTTP from anywhere
+      community.general.ufw:
+        rule: allow
+        port: "80"
+        proto: tcp
+
+    - name: Allow HTTPS from anywhere
+      community.general.ufw:
+        rule: allow
+        port: "443"
+        proto: tcp
+
+    - name: Allow Kubernetes API from trusted ranges
+      community.general.ufw:
+        rule: allow
+        port: "6443"
+        proto: tcp
+        src: "{{ item }}"
+      loop: "{{ allowed_k8s_ranges }}"
+
+    - name: Enable ufw
+      community.general.ufw:
+        state: enabled

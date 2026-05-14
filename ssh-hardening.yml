@@ -1,0 +1,35 @@
+---
+- name: Harden SSH configuration
+  hosts: all
+  become: true
+
+  vars:
+    ssh_settings:
+      PasswordAuthentication: "no"
+      PermitRootLogin: "prohibit-password"
+      MaxAuthTries: "3"
+      LoginGraceTime: "30"
+
+  tasks:
+    - name: Apply SSH hardening settings
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^#?{{ item.key }}"
+        line: "{{ item.key }} {{ item.value }}"
+        state: present
+      loop: "{{ ssh_settings | dict2items }}"
+      notify: Restart sshd
+
+    - name: Lock down kubeconfig permissions
+      ansible.builtin.file:
+        path: /root/.kube/config
+        owner: root
+        group: root
+        mode: "0600"
+      failed_when: false
+
+  handlers:
+    - name: Restart sshd
+      ansible.builtin.service:
+        name: sshd
+        state: restarted

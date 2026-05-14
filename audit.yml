@@ -1,0 +1,125 @@
+---
+- name: Audit server security
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Check active sessions
+      ansible.builtin.command:
+        cmd: who
+      register: active_sessions
+
+    - name: Print active sessions
+      ansible.builtin.debug:
+        msg: "{{ active_sessions.stdout }}"
+
+    - name: Check recent login history
+      ansible.builtin.command:
+        cmd: last -n 20
+      register: login_history
+
+    - name: Print login history
+      ansible.builtin.debug:
+        msg: "{{ login_history.stdout }}"
+
+    - name: Check failed login attempts
+      ansible.builtin.command:
+        cmd: grep "Failed password" /var/log/auth.log
+      register: failed_logins
+      failed_when: false
+
+    - name: Print failed login attempts
+      ansible.builtin.debug:
+        msg: "{{ failed_logins.stdout_lines[-20:] if failed_logins.stdout_lines | length > 0 else 'No failed login attempts found' }}"
+    - name: Check top processes by CPU
+      ansible.builtin.command:
+        cmd: ps aux --sort=-%cpu
+      register: running_processes
+
+    - name: Print top 20 processes
+      ansible.builtin.debug:
+        msg: "{{ running_processes.stdout_lines[:20] }}"
+
+    - name: Check active network connections
+      ansible.builtin.command:
+        cmd: ss -tnp
+      register: network_connections
+
+    - name: Print network connections
+      ansible.builtin.debug:
+        msg: "{{ network_connections.stdout }}"
+
+    - name: Check recently modified system files
+      ansible.builtin.shell:
+        cmd: find /etc /usr/bin /usr/sbin -mtime -7 -type f
+      register: modified_files
+      failed_when: false
+
+    - name: Print recently modified files
+      ansible.builtin.debug:
+        msg: "{{ modified_files.stdout_lines }}"
+
+    - name: Check root crontab
+      ansible.builtin.command:
+        cmd: crontab -l
+      register: root_crontab
+      failed_when: false
+
+    - name: Print root crontab
+      ansible.builtin.debug:
+        msg: "{{ root_crontab.stdout if root_crontab.stdout else 'No crontab for root' }}"
+
+    - name: Check cron.d directory
+      ansible.builtin.command:
+        cmd: ls /etc/cron.d/
+      register: cron_d
+
+    - name: Print cron.d contents
+      ansible.builtin.debug:
+        msg: "{{ cron_d.stdout_lines }}"
+
+    - name: Check for world-readable sensitive files
+      ansible.builtin.shell:
+        cmd: >
+          find / 
+          -path /proc -prune -o
+          -path /sys -prune -o
+          -path /usr/lib -prune -o
+          -path /usr/share -prune -o
+          -path /usr/lib64 -prune -o
+          -path /var/lib/rancher -prune -o
+          -path /var/lib/kubelet -prune -o
+          -path /var/lib/docker -prune -o
+          -path /var/lib/containerd -prune -o
+          -path /run/flannel -prune -o
+          -path /run/containerd -prune -o
+          -path /etc/systemd -prune -o
+          -path /opt/containerd -prune -o
+          -path /snap -prune -o
+          -path /boot -prune -o
+          \( -name "*.env" -o -name "*.pem" -o -name "*.key" \)
+          -type f -print 2>/dev/null | xargs -r ls -la 2>/dev/null
+      register: sensitive_files
+      changed_when: false
+      failed_when: false
+
+    - name: Fail if sensitive files are found
+      ansible.builtin.fail:
+        msg: "WARNING: Sensitive files found — review immediately: {{ sensitive_files.stdout_lines }}"
+      when: sensitive_files.stdout_lines | length > 0
+
+    - name: Fail if sensitive files are found
+      ansible.builtin.fail:
+        msg: "WARNING: Sensitive files found on server — review immediately: {{ sensitive_files.stdout_lines }}"
+      when: sensitive_files.stdout_lines | length > 0
+
+    - name: Check all users with sudo privileges
+      ansible.builtin.command:
+        cmd: grep -E "sudo|wheel" /etc/group
+      register: sudo_audit
+      changed_when: false
+      failed_when: false
+
+    - name: Print sudo users
+      ansible.builtin.debug:
+        msg: "Users with sudo access: {{ sudo_audit.stdout_lines }}"

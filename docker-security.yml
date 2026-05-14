@@ -1,0 +1,77 @@
+---
+- name: Docker image security scanning
+  hosts: all
+  become: true
+
+  vars:
+    trivy_version: "0.50.1"
+    trivy_severity: "HIGH,CRITICAL"
+
+  tasks:
+    - name: Check if Docker is installed
+      ansible.builtin.command:
+        cmd: docker --version
+      register: docker_installed
+      changed_when: false
+      failed_when: false
+
+    - name: Skip if Docker is not installed
+      ansible.builtin.debug:
+        msg: "Docker is not installed on this server. Skipping image scanning."
+      when: docker_installed.rc != 0
+
+    - name: Install Trivy dependencies
+      ansible.builtin.apt:
+        name:
+          - wget
+          - apt-transport-https
+          - gnupg
+        state: present
+        update_cache: yes
+      when: docker_installed.rc == 0
+
+    - name: Add Trivy GPG key
+      ansible.builtin.shell:
+        cmd: wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor -o /usr/share/keyrings/trivy.gpg
+        creates: /usr/share/keyrings/trivy.gpg
+      when: docker_installed.rc == 0
+
+    - name: Add Trivy repository
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main"
+        state: present
+        filename: trivy
+      when: docker_installed.rc == 0
+
+    - name: Install Trivy
+      ansible.builtin.apt:
+        name: trivy
+        state: present
+        update_cache: yes
+      when: docker_installed.rc == 0
+
+    - name: Get list of running Docker images
+      ansible.builtin.command:
+        cmd: docker images --format "{{ '{{' }}.Repository{{ '}}' }}:{{ '{{' }}.Tag{{ '}}' }}"
+      register: docker_images
+      changed_when: false
+      when: docker_installed.rc == 0
+
+    - name: Print images to be scanned
+      ansible.builtin.debug:
+        msg: "Scanning these images: {{ docker_images.stdout_lines }}"
+      when: docker_installed.rc == 0
+
+    - name: Scan each Docker image with Trivy
+      ansible.builtin.command:
+        cmd: trivy image --severity {{ trivy_severity }} --exit-code 0 {{ item }}
+      register: trivy_results
+      changed_when: false
+      loop: "{{ docker_images.stdout_lines }}"
+      when: docker_installed.rc == 0 and docker_images.stdout_lines | length > 0
+
+    - name: Print Trivy scan results
+      ansible.builtin.debug:
+        msg: "{{ item.stdout_lines }}"
+      loop: "{{ trivy_results.results }}"
+      when: docker_installed.rc == 0 and docker_images.stdout_lines | length > 0
