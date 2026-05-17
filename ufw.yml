@@ -3,14 +3,6 @@
   hosts: all
   become: true
 
-  vars:
-    allowed_ssh_ranges:
-      - "102.89.0.0/16"
-    allowed_k8s_ranges:
-      - "102.89.0.0/16"
-      - "165.227.128.0/20"
-      - "178.128.192.0/18"
-
   tasks:
     - name: Install community.general collection
       ansible.builtin.command:
@@ -38,7 +30,7 @@
     - name: Allow SSH with rate limiting from trusted ranges
       community.general.ufw:
         rule: limit
-        port: "22"
+        port: "{{ ssh_port }}"
         proto: tcp
         src: "{{ item }}"
       loop: "{{ allowed_ssh_ranges }}"
@@ -46,13 +38,13 @@
     - name: Allow HTTP from anywhere
       community.general.ufw:
         rule: allow
-        port: "80"
+        port: "{{ http_port }}"
         proto: tcp
 
     - name: Allow HTTPS from anywhere
       community.general.ufw:
         rule: allow
-        port: "443"
+        port: "{{ https_port }}"
         proto: tcp
 
     - name: Allow Kubernetes API from trusted ranges

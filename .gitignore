@@ -2,3 +2,4 @@
 *.log
 inventory.ini
 ansible.cfg
+group_vars/all.yml

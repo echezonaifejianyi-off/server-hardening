@@ -31,6 +31,7 @@
     - name: Print failed login attempts
       ansible.builtin.debug:
         msg: "{{ failed_logins.stdout_lines[-20:] if failed_logins.stdout_lines | length > 0 else 'No failed login attempts found' }}"
+
     - name: Check top processes by CPU
       ansible.builtin.command:
         cmd: ps aux --sort=-%cpu
@@ -51,7 +52,7 @@
 
     - name: Check recently modified system files
       ansible.builtin.shell:
-        cmd: find /etc /usr/bin /usr/sbin -mtime -7 -type f
+        cmd: find /etc /usr/bin /usr/sbin -mtime -7 -type f 2>/dev/null
       register: modified_files
       failed_when: false
 
@@ -81,23 +82,11 @@
     - name: Check for world-readable sensitive files
       ansible.builtin.shell:
         cmd: >
-          find / 
-          -path /proc -prune -o
-          -path /sys -prune -o
-          -path /usr/lib -prune -o
-          -path /usr/share -prune -o
-          -path /usr/lib64 -prune -o
-          -path /var/lib/rancher -prune -o
-          -path /var/lib/kubelet -prune -o
-          -path /var/lib/docker -prune -o
-          -path /var/lib/containerd -prune -o
-          -path /run/flannel -prune -o
-          -path /run/containerd -prune -o
-          -path /etc/systemd -prune -o
-          -path /opt/containerd -prune -o
-          -path /snap -prune -o
-          -path /boot -prune -o
-          \( -name "*.env" -o -name "*.pem" -o -name "*.key" \)
+          find /
+          {% for path in excluded_audit_paths %}
+          -path {{ path }} -prune -o
+          {% endfor %}
+          \( {% for pattern in sensitive_file_patterns %} -name "{{ pattern }}" {% if not loop.last %}-o{% endif %} {% endfor %} \)
           -type f -print 2>/dev/null | xargs -r ls -la 2>/dev/null
       register: sensitive_files
       changed_when: false
@@ -106,11 +95,6 @@
     - name: Fail if sensitive files are found
       ansible.builtin.fail:
         msg: "WARNING: Sensitive files found — review immediately: {{ sensitive_files.stdout_lines }}"
-      when: sensitive_files.stdout_lines | length > 0
-
-    - name: Fail if sensitive files are found
-      ansible.builtin.fail:
-        msg: "WARNING: Sensitive files found on server — review immediately: {{ sensitive_files.stdout_lines }}"
       when: sensitive_files.stdout_lines | length > 0
 
     - name: Check all users with sudo privileges

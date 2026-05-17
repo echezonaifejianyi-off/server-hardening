@@ -62,3 +62,8 @@
         state: present
         update_cache: yes
       when: certbot_version.rc != 0
+
+    - name: Obtain SSL certificate
+      ansible.builtin.command:
+        cmd: certbot --nginx -d {{ domain_name }} --email {{ certbot_email }} --agree-tos --non-interactive
+      when: certbot_version.rc != 0 and domain_name != "" and certbot_email != ""

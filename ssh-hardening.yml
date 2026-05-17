@@ -3,13 +3,6 @@
   hosts: all
   become: true
 
-  vars:
-    ssh_settings:
-      PasswordAuthentication: "no"
-      PermitRootLogin: "prohibit-password"
-      MaxAuthTries: "3"
-      LoginGraceTime: "30"
-
   tasks:
     - name: Apply SSH hardening settings
       ansible.builtin.lineinfile:
@@ -17,7 +10,11 @@
         regexp: "^#?{{ item.key }}"
         line: "{{ item.key }} {{ item.value }}"
         state: present
-      loop: "{{ ssh_settings | dict2items }}"
+      loop:
+        - { key: "PasswordAuthentication", value: "no" }
+        - { key: "PermitRootLogin", value: "prohibit-password" }
+        - { key: "MaxAuthTries", value: "{{ max_auth_tries }}" }
+        - { key: "LoginGraceTime", value: "{{ login_grace_time }}" }
       notify: Restart sshd
 
     - name: Lock down kubeconfig permissions

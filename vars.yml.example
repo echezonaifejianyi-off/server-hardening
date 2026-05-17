@@ -1,0 +1,48 @@
+---
+# Server user configuration
+app_user: appuser          # dedicated non-root user for running the application
+app_dir: /opt/app          # directory where application files live
+
+# UFW firewall configuration
+allowed_ssh_ranges:        # IP ranges allowed to connect via SSH
+  - "0.0.0.0/0"           # replace with your actual IP range e.g. "102.89.0.0/16"
+allowed_k8s_ranges:        # IP ranges allowed to reach the Kubernetes API port
+  - "0.0.0.0/0"           # replace with your actual IP range
+http_port: 80              # public HTTP port
+https_port: 443            # public HTTPS port
+ssh_port: 22               # SSH port
+
+# Fail2Ban configuration
+fail2ban_maxretry: 3       # failed attempts before ban
+fail2ban_bantime: 3600     # ban duration in seconds (3600 = 1 hour)
+fail2ban_findtime: 600     # window for counting failures in seconds (600 = 10 minutes)
+
+# SSH hardening configuration
+max_auth_tries: 3          # maximum authentication attempts per connection
+login_grace_time: 30       # seconds before unauthenticated connection is dropped
+
+# SSL configuration
+domain_name: ""            # your domain e.g. "app.example.com"
+certbot_email: ""          # email for Let's Encrypt certificate notifications
+
+# Audit configuration
+sensitive_file_patterns:   # file patterns the audit will flag as sensitive
+  - "*.env"
+  - "*.pem"
+  - "*.key"
+excluded_audit_paths:      # paths excluded from the sensitive file scan
+  - /proc
+  - /sys
+  - /usr/lib
+  - /usr/share
+  - /usr/lib64
+  - /var/lib/rancher
+  - /var/lib/kubelet
+  - /var/lib/docker
+  - /var/lib/containerd
+  - /run/flannel
+  - /run/containerd
+  - /opt/containerd
+  - /etc/systemd
+  - /snap
+  - /boot
